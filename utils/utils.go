@@ -153,7 +153,7 @@ func CheckPermission(address string, body map[string]string) (bool, string, erro
 
 	// 创建带超时的HTTP客户端
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 3 * time.Second,
 	}
 
 	req, err := http.NewRequest("POST", address+"/swadmin/permission/ifApiPermit", bytes.NewBufferString(encodedData))
@@ -164,7 +164,7 @@ func CheckPermission(address string, body map[string]string) (bool, string, erro
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, "", fmt.Errorf("请求权限服务失败: %w", err)
+		return false, "", fmt.Errorf("请求权限服务失败")
 	}
 	defer resp.Body.Close()
 

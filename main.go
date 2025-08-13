@@ -171,9 +171,14 @@ func cmdAction(c context.Context, cmd *cli.Command) error {
 	router := cfg.AuthIgnoreRouter
 	routerStrList := strings.Split(router, ",")
 	// 预编译正则忽略路由
-	compiledIgnores := make([]*regexp.Regexp, len(routerStrList))
-	for i, route := range routerStrList {
-		compiledIgnores[i] = regexp.MustCompile(route)
+	var compiledIgnores []*regexp.Regexp // 使用动态切片
+	for _, route := range routerStrList {
+		if route == "" {
+			continue // 跳过空字符串
+		}
+		re := regexp.MustCompile(route)
+		compiledIgnores = append(compiledIgnores, re)
+		//compiledIgnores[i] = regexp.MustCompile(route)
 	}
 	cfg.IgnoreRoutes = compiledIgnores
 

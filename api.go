@@ -182,13 +182,13 @@ func (a *APIServer) casbinAuth(c *gin.Context) (bool, string) {
 		return true, ""
 	}
 	////忽略的直接放行
-	//routes := cfg.IgnoreRoutes
+	routes := cfg.IgnoreRoutes
 	path := c.Request.URL.Path
-	//for _, re := range routes {
-	//	if re.MatchString(path) {
-	//		return true
-	//	}
-	//}
+	for _, re := range routes {
+		if re.MatchString(path) {
+			return true, ""
+		}
+	}
 
 	token := getToken(c)
 	if token == "" {
