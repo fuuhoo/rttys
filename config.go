@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/kylelemons/go-gypsy/yaml"
 	"github.com/urfave/cli/v3"
@@ -104,6 +105,7 @@ func getConfigOpt(yamlCfg *yaml.File, name string, opt any) error {
 		var val string
 		val, err = yamlCfg.Get(name)
 		if err == nil {
+			val = strings.ReplaceAll(val, "\"", "")
 			*opt = val
 		}
 	case *int:
