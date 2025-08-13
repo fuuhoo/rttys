@@ -9,8 +9,10 @@ import (
 	"context"
 	_ "net/http/pprof"
 	"os"
+	"regexp"
 	"runtime"
 	"runtime/debug"
+	"strings"
 
 	xlog "github.com/zhaojh329/rttys/v5/log"
 
@@ -40,6 +42,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "conf",
 				Aliases: []string{"c"},
+				Value:   "./rttys.conf",
 				Usage:   "config file to load",
 			},
 			&cli.StringFlag{
@@ -157,10 +160,22 @@ func cmdAction(c context.Context, cmd *cli.Command) error {
 	}
 
 	cfg := Config{
-		AddrDev:   ":5912",
-		AddrUser:  ":5913",
-		LocalAuth: true,
+		AddrDev:           ":5912",
+		AddrUser:          ":5913",
+		LocalAuth:         true,
+		CasbinAuthEnbaled: false,
+		AuthnEnabled:      false,
+		CasbinAuthAddress: "http://172.17.4.35:8896/api",
+		AuthIgnoreRouter:  "",
 	}
+	router := cfg.AuthIgnoreRouter
+	routerStrList := strings.Split(router, ",")
+	// 预编译正则忽略路由
+	compiledIgnores := make([]*regexp.Regexp, len(routerStrList))
+	for i, route := range routerStrList {
+		compiledIgnores[i] = regexp.MustCompile(route)
+	}
+	cfg.IgnoreRoutes = compiledIgnores
 
 	err := cfg.Parse(cmd)
 	if err != nil {

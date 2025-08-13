@@ -13,7 +13,7 @@ export default [
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
       'vue/no-multiple-template-root': 'off',
       'vue/multi-word-component-names': 'off',
-      'linebreak-style': ['error', 'unix'],
+      'linebreak-style': "off",
       'quotes': ['error', 'single'],
       'brace-style': 'error',
       'comma-dangle': 'error',

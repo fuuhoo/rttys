@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/kylelemons/go-gypsy/yaml"
 	"github.com/urfave/cli/v3"
@@ -32,6 +33,13 @@ type Config struct {
 	SslCert string
 	SslKey  string
 	CaCert  string
+
+	//修改权限相关
+	CasbinAuthEnbaled bool
+	AuthnEnabled      bool
+	CasbinAuthAddress string
+	AuthIgnoreRouter  string
+	IgnoreRoutes      []*regexp.Regexp
 }
 
 func (cfg *Config) Parse(c *cli.Command) error {
@@ -39,6 +47,7 @@ func (cfg *Config) Parse(c *cli.Command) error {
 	var err error
 
 	conf := c.String("conf")
+	println("conf", conf)
 	if conf != "" {
 		yamlCfg, err = yaml.ReadFile(conf)
 		if err != nil {
@@ -67,6 +76,11 @@ func (cfg *Config) Parse(c *cli.Command) error {
 		"sslcert": &cfg.SslCert,
 		"sslkey":  &cfg.SslKey,
 		"cacert":  &cfg.CaCert,
+
+		"casbin-auth-enabled": &cfg.CasbinAuthEnbaled,
+		"authn-enabled":       &cfg.AuthnEnabled,
+		"casbin-auth-address": &cfg.CasbinAuthAddress,
+		"auth-ignore-router":  &cfg.AuthIgnoreRouter,
 	}
 
 	for name, opt := range fields {

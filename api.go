@@ -6,6 +6,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
@@ -61,8 +63,22 @@ func (srv *RttyServer) ListenAPI() error {
 			return
 		}
 
-		if !a.auth(c) {
-			c.AbortWithStatus(http.StatusUnauthorized)
+		result, meg := a.auth(c)
+		if !result {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"message": meg,
+				"code":    http.StatusUnauthorized,
+				"data":    nil,
+			})
+			return
+		}
+		auth, msg := a.casbinAuth(c)
+		if !auth {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"message": msg,
+				"code":    http.StatusForbidden,
+				"data":    nil,
+			})
 			return
 		}
 	})
@@ -106,25 +122,131 @@ type APIServer struct {
 	r        *gin.Engine
 }
 
-func (a *APIServer) auth(c *gin.Context) bool {
+func (a *APIServer) auth(c *gin.Context) (result bool, meg string) {
+
 	cfg := &a.srv.cfg
 
-	if !cfg.LocalAuth && isLocalRequest(c) {
-		return true
+	//if !cfg.LocalAuth && isLocalRequest(c) {
+	//	return true, ""
+	//}
+	//
+	//if cfg.Password == "" {
+	//	return true, ""
+	//}
+	//
+	//sid, err := c.Cookie("sid")
+	//if err != nil || !a.sessions.Exists(sid) {
+	//	return false, ""
+	//}
+
+	//新的逻辑
+	enabled := cfg.AuthnEnabled
+	if !enabled {
+		return true, ""
 	}
 
-	if cfg.Password == "" {
-		return true
+	token := getToken(c)
+	if token == "" {
+		return false, "未找到有效的token"
 	}
 
-	sid, err := c.Cookie("sid")
-	if err != nil || !a.sessions.Exists(sid) {
-		return false
+	user, b := utils.GetFromCache(token)
+	if b {
+		c.Request.Header.Set("user", user)
+		return true, user
 	}
 
-	a.sessions.Expire(sid, httpSessionExpire)
+	username, exp, err := utils.ValidateToken(token)
+	if exp == 0 || err != nil {
+		return false, err.Error()
+	} else {
+		// 计算剩余时间并缓存
+		now := time.Now().Unix()
+		ttl := exp - now
+		if ttl > 0 {
+			utils.SetCache(token, username, ttl)
+			c.Request.Header.Set("user", username)
+			return true, username
 
-	return true
+		} else {
+			return false, "token已过期"
+
+		}
+	}
+}
+func (a *APIServer) casbinAuth(c *gin.Context) (bool, string) {
+
+	cfg := &a.srv.cfg
+	enbaled := cfg.CasbinAuthEnbaled
+	if !enbaled {
+		return true, ""
+	}
+	////忽略的直接放行
+	//routes := cfg.IgnoreRoutes
+	path := c.Request.URL.Path
+	//for _, re := range routes {
+	//	if re.MatchString(path) {
+	//		return true
+	//	}
+	//}
+
+	token := getToken(c)
+	if token == "" {
+		return false, "未找到有效token"
+	}
+
+	// 获取请求方法
+	act := c.Request.Method
+	project := utils.GetValueByName(c, "PROJECT")
+	if project == "" {
+		project = "taian" // 默认值
+	}
+	cacheKey := fmt.Sprintf("%s_%s_%s_%s", token, act, path, project)
+	_, b2 := utils.GetFromCache(cacheKey)
+	if b2 {
+		return true, ""
+	}
+
+	// 构建请求体
+	body := map[string]string{
+		"jwt":     token,
+		"act":     act,
+		"apiPath": path,
+		"project": project,
+	}
+	// 调用权限服务
+	address := cfg.CasbinAuthAddress
+	permitted, respBody, err := utils.CheckPermission(address, body)
+	if err == nil {
+		if permitted == true && respBody == "true" {
+			utils.SetCache(cacheKey, "", 120)
+			return true, ""
+		} else {
+			var data map[string]interface{}
+			err := json.Unmarshal([]byte(respBody), &data)
+			if err != nil {
+				panic(err)
+			}
+			msg := data["message"].(string)
+			return false, msg
+		}
+	} else {
+		return false, err.Error()
+	}
+}
+
+func getToken(c *gin.Context) string {
+	token := utils.GetValueByName(c, "access-token")
+	if token == "" {
+		token = utils.GetValueByName(c, "Authorization")
+	}
+
+	token = strings.ReplaceAll(token, "Bearer-", "")
+	token = strings.ReplaceAll(token, "Bearer ", "")
+	token = strings.ReplaceAll(token, "bearer-", "")
+	token = strings.ReplaceAll(token, "bearer ", "")
+	return token
+
 }
 
 func (a *APIServer) callUserHookUrl(c *gin.Context) bool {
@@ -345,11 +467,24 @@ func (a *APIServer) handleSignin(c *gin.Context) {
 }
 
 func (a *APIServer) handleAlive(c *gin.Context) {
-	if !a.auth(c) {
-		c.AbortWithStatus(http.StatusUnauthorized)
+
+	result, meg := a.auth(c)
+	if !result {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"message": meg,
+			"code":    http.StatusUnauthorized,
+			"data":    nil,
+		})
+		return
 	} else {
 		c.Status(http.StatusOK)
 	}
+
+	//if !a.auth(c) {
+	//	c.AbortWithStatus(http.StatusUnauthorized)
+	//} else {
+	//	c.Status(http.StatusOK)
+	//}
 }
 
 func (a *APIServer) handleFile(c *gin.Context) {
